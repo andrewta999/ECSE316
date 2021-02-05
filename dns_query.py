@@ -1,4 +1,5 @@
 import socket 
+import time 
 
 from dns_packet import DnsPacket
 
@@ -35,6 +36,7 @@ class DnsClient():
         if params.MX:
             self.query_type = "MX"
 
+        self.retry = 0
 
     
     def send_query(self):
@@ -46,13 +48,70 @@ class DnsClient():
         dns = DnsPacket()
         query_packet = dns.build_packet(self.name, self.query_type)
 
-        # send the packet
-        sock.sendto(query_packet, (self.address, self.port))
+        # send and receive
+        start = time.time()
+        server_packet = self.send(sock, query_packet)
+        end = time.time()
 
-        # get the response
-        server_packet = sock.recv(4096)
-        print(server_packet)
+        # decode and print response
+        self. print_response(dns, server_packet, end - start)
 
-        # decode the response
-        response = dns.unpack_packet(server_packet)
-        print(response)
+    
+    def send(self, sock, query_packet, retry=0):
+        self.retry = retry 
+        if retry > self.max_retries:
+            return None 
+        try:
+            # send the packet
+            sock.sendto(query_packet, (self.address, self.port))
+            # get the response
+            server_packet = sock.recv(4096)
+        except socket.timeout:
+            return self.send(sock, query_packet, retry + 1)
+        
+        return server_packet
+
+
+    def print_error(self, error_code):
+        if error_code == 1:
+            print(f"Maximum number of retries {self.max_retires} exceeded")
+
+    
+    def print_response(self, dns, response, interval):
+        print(f"DnsClient sending request for {self.name}")
+        print(f"Server: {self.address}")
+        print(f"Request type: {self.query_type}\n")
+
+        if response != None:
+            # decode packet
+            response = dns.unpack_packet(response)
+            print(f"Response received after {interval} seconds ({self.retry} retries)")
+            
+            ancount = response['header']['ancount']
+            nscount = response['header']['nscount']
+            arcount = response['header']['arcount']
+
+            if response['header']['aa'] == 0:
+                auth = "noauth"
+            else:
+                auth = "auth"
+
+            # print each section
+            self.print_section(ancount, response['answer'], "Answer", auth)
+            #self.print_section(ancount, response['answer'], "Authority", auth)
+            #self.print_section(ancount, response['answer'], "Additional", auth)
+
+
+    def print_section(self, count, section, section_name, auth):
+        if count > 0:
+            print(f"***{section_name} Section ({count} records)***")
+                
+            for ans in section:
+                if ans["TYPE"] == 1:
+                    print(f"IP\t{ans['RDATA']}\t{ans['TTL']}\t{auth}")
+                elif ans["TYPE"] == 5:
+                    print(f"CNAME\t{ans['RDATA']}\t{ans['TTL']}\t{auth}")
+                elif ans["TYPE"] == 15:
+                    print(f"MX\t{ans['RDATA']['exchange']}\t{ans['RDATA']['preference']}\t{ans['TTL']}\t{auth}")
+                else: 
+                    print(f"NS\t{ans['RDATA']}\t{ans['TTL']}\t{auth}")

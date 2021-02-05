@@ -14,9 +14,7 @@ class DnsPacket():
     analyze the response packet 
     '''
     def __init__(self):
-        self.id = None # packet id
         self.client_packet = b'' # dns packet
-        self.format = '' # packet format
 
     def build_packet(self, address, query_type):
         '''Build a DNS package given address and question type
@@ -34,10 +32,8 @@ class DnsPacket():
             bytes object represents a dns packet 
         '''
 
-        # contruct the packet's header 
-        self.id = random.getrandbits(16)
-        dns = struct.pack('>HHHHHH', self.id, 256, 1, 0, 0, 0)
-        self.format += '>HHHHHH' 
+        # contruct the packet's header: id, flag, qdcount, ancount, nscount, arcount 
+        dns = struct.pack('>HHHHHH', random.getrandbits(16), 256, 1, 0, 0, 0)
 
         # construct the packet's body
         # split address by '.' character
@@ -46,20 +42,16 @@ class DnsPacket():
         for url in url_list:
             # add the length of this url
             dns += struct.pack('B', len(url))
-            self.format += 'B'
             # add the url
             for c in url:
                 # add an encoded character in url
                 dns += struct.pack('c', c.encode('utf-8'))
-                self.format += 'c'
         
         # add end of data 
         dns += struct.pack('B', 0)
-        self.format += 'B'
 
         # add query type and query class 
         dns += struct.pack('>HH', QType[query_type], 1)
-        self.format += 'HH'
 
         # store dns
         self.client_packet = dns 
@@ -83,48 +75,46 @@ class DnsPacket():
         '''
         result = {} # dictionary to store data
         
-        # unpack response header and question
-        response_hq = struct.unpack_from(self.format, response)
+        # intialize unpack index
+        unpack_index = 0
+
+        # unpack response header, 6 H from 0 index
+        response_hq = struct.unpack_from(">HHHHHH", response, unpack_index)
+        qdcount, ancount, nscount, arcount = response_hq[2::]
 
         # header flags
         flag = response_hq[1]
 
         # unpack question
-        i = 6
-        num = response_hq[i]
-        question = []
-        while num != 0:
-            question.append(b''.join(response_hq[i+1:i+num+1:]).decode())
-            i = i + num + 1
-            num = response_hq[i]
-
-        # unpack qtype and qclass 
-        qtype, qclass = response_hq[-2], response_hq[-1]
+        question, unpack_index = self.unpack_question(response, unpack_index + 12)
 
         # unpack answer section
+        answer, unpack_index = self.unpack_record(response, unpack_index, ancount)
 
-        # unpack authoritive section
+        # unpack authority section
+        # authority, unpack_index = self.unpack_record(response, unpack_index, nscount)
 
         # unpack additionals section
+        # additional, unpack_index = self.unpack_record(response, unpack_index, arcount)
 
         result = {
-            "id": response_hq[0],
-            "qr": (flag & 0x8000) >> 15,
-            "opcode": (flag & 0x7800) >> 11,
-            "aa": (flag & 0x0400),
-            "tc": (flag & 0x200),
-            "rd": (flag & 0x100) >> 8,
-            "ra": (flag & 0x80) >> 7,
-            "z": (flag & 0x70) >> 4,
-            "rcode": flag & 0xF,
-            "qdcount": response_hq[2], 
-            "ancount": response_hq[3],
-            "nscount": response_hq[4],
-            "arcount": response_hq[5],
-            "question": '.'.join(question),
-            "qtype": qtype, 
-            "qclass": qclass,
-            "answer": "",
+            "header": {
+                "id": response_hq[0],
+                "qr": (flag & 0x8000) >> 15,
+                "opcode": (flag & 0x7800) >> 11,
+                "aa": (flag & 0x0400),
+                "tc": (flag & 0x200),
+                "rd": (flag & 0x100) >> 8,
+                "ra": (flag & 0x80) >> 7,
+                "z": (flag & 0x70) >> 4,
+                "rcode": flag & 0xF,
+                "qdcount": qdcount, 
+                "ancount": ancount,
+                "nscount": nscount,
+                "arcount": arcount
+            },
+            "question": question,
+            "answer": answer,
             "authority": "",
             "additional": ""
         }
@@ -132,3 +122,133 @@ class DnsPacket():
         # return result
         return result 
 
+
+    def unpack_question(self, response, unpack_index):
+        # unpack question
+        question, index = self.unpack_domain(response, unpack_index)
+
+        # unpack qtype and qclass
+        qtype, qclass = struct.unpack_from(">HH", response, index)
+
+        # build result
+        result = {
+            "question": question,
+            "qtype": qtype ,
+            "qclass": qclass
+        }
+
+        return result, index + 4
+
+
+    def unpack_domain(self, response, unpack_index):
+        ''' Unpack question section
+        '''
+        index = unpack_index
+
+        # extract question 
+        question = []
+        # get first 8 bits
+        part = struct.unpack_from(">B", response, index)[0]
+        index += 1
+        while part != 0:
+            # check if this is a pointer - two 1s from the left
+            if part & 0xc0 == 0xc0: 
+                # get pointer value - 14 bits from the right
+                pointer = (struct.unpack_from(">H", response, index - 1)[0]) & 0x3fff
+                # get part this pointer points to 
+                temp_part = self.unpack_domain(response, pointer)[0]
+                # update question
+                question.append(temp_part)
+                # increment index
+                index += 1
+                break
+            
+            # if this is a regular name
+            temp_part = struct.unpack_from(f">{part}c", response, index)
+            temp_part = b''.join(temp_part).decode()
+            question.append(temp_part)
+
+            # update index 
+            index += part 
+            
+            # move to next part
+            part = struct.unpack_from(">B", response, index)[0]
+
+            # update index
+            index += 1
+
+        return '.'.join(question), index     
+
+
+    def unpack_record(self, response, unpack_index, count):
+        '''
+        Unpack answer, authority, or additional section 
+        '''
+        # start index 
+        index = unpack_index
+
+        # arrays to store all answers
+        answers = []
+
+        for _ in range(count):
+            # unpack NAME
+            name, index = self.unpack_domain(response, index)
+    
+            # unpack TYPE, CLASS, TTL, RDLENGTH
+            atype, aclass, ttl, rdlength = struct.unpack_from(">HHIH", response, index)
+            # update index
+            index += 10
+
+            # unpack RDATA
+            if atype == 1: # IP
+                rdata, index = self.unpack_ip(response, index)
+            elif atype == 2: # NS
+                rdata, index = self.unpack_ns(response, index)
+            elif atype == 5: # CNAME
+                rdata, index = self.unpack_cname(response, index)
+            elif atype == 15: #MX
+                rdata = self.unpack_ms(response, index)
+        
+            result = {
+                "NAME": name, 
+                "TYPE": atype,
+                "CLASS": aclass, 
+                "TTL": ttl,
+                "RDLENGTH": rdlength,
+                "RDATA": rdata 
+            }
+
+            answers.append(result)
+
+        return answers, index 
+
+    
+    def unpack_ip(self, message, index):
+        ip_list = struct.unpack_from(">BBBB", message, index)
+        ip_list = list(map(str, ip_list))
+        return '.'.join(ip_list), index + 4
+
+
+    def unpack_ns(self, message, index):
+        name, index = self.unpack_domain(message, index)
+        return name, index 
+
+
+    def unpack_cname(self, message, index):
+        return self.unpack_ns(message, index)
+
+
+    def unpack_mx(self, message, index):
+        # unpack preference 
+        preference = struct.unpack_from(">H", message, index)
+        index += 2
+
+        # unpack exchange
+        exchange, index = self.unpack_domain(message, index)
+        
+        result = {
+            "preference": preference,
+            "exchange": exchange 
+        }
+
+        return result, index 
