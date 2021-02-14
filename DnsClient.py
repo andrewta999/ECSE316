@@ -41,10 +41,8 @@ def main():
     # create a dns client 
     dns_client = DnsClient(params)
 
-    # send the query
+    # send the query and display the response
     dns_client.send_query()
-
-    # print(params)
 
 
 if __name__ == "__main__":

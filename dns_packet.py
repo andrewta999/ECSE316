@@ -92,10 +92,10 @@ class DnsPacket():
         answer, unpack_index = self.unpack_record(response, unpack_index, ancount)
 
         # unpack authority section
-        # authority, unpack_index = self.unpack_record(response, unpack_index, nscount)
+        authority, unpack_index = self.unpack_record(response, unpack_index, nscount)
 
         # unpack additionals section
-        # additional, unpack_index = self.unpack_record(response, unpack_index, arcount)
+        additional, unpack_index = self.unpack_record(response, unpack_index, arcount)
 
         result = {
             "header": {
@@ -115,8 +115,8 @@ class DnsPacket():
             },
             "question": question,
             "answer": answer,
-            "authority": "",
-            "additional": ""
+            "authority": authority,
+            "additional": additional
         }
 
         # return result
@@ -124,6 +124,21 @@ class DnsPacket():
 
 
     def unpack_question(self, response, unpack_index):
+        ''' Unpack the question section
+
+        Parameters
+        ----------
+        response : bytes
+            response in bytes
+        unpack_index : int
+            index to start unpacking from 
+        
+        Returns
+        -------
+        result : dict
+        unpack_index : int
+            index stop
+        '''
         # unpack question
         question, index = self.unpack_domain(response, unpack_index)
 
@@ -141,7 +156,18 @@ class DnsPacket():
 
 
     def unpack_domain(self, response, unpack_index):
-        ''' Unpack question section
+        ''' Unpack domain name
+
+        Parameters
+        ----------
+        response : bytes
+        unpack_index : int
+
+        Returns
+        -------
+        name : str
+            domain name
+        unpack_index : int
         '''
         index = unpack_index
 
@@ -181,8 +207,20 @@ class DnsPacket():
 
 
     def unpack_record(self, response, unpack_index, count):
-        '''
-        Unpack answer, authority, or additional section 
+        ''' Unpack a section (answer, authority, additional)
+
+        Parameters
+        ----------
+        response : bytes
+        unpack_index : int
+        count : int
+            number of records
+
+        Returns
+        -------
+        result : dict
+            dictionary of records
+        unpack_index : int
         '''
         # start index 
         index = unpack_index
@@ -200,6 +238,7 @@ class DnsPacket():
             index += 10
 
             # unpack RDATA
+            rdata = ""
             if atype == 1: # IP
                 rdata, index = self.unpack_ip(response, index)
             elif atype == 2: # NS
@@ -224,21 +263,69 @@ class DnsPacket():
 
     
     def unpack_ip(self, message, index):
+        ''' Unpack an IP address
+
+        Paramters
+        ---------
+        message : bytes
+        index: int
+
+        Returns
+        -------
+        ip : string
+        unpack_index : int
+        '''
         ip_list = struct.unpack_from(">BBBB", message, index)
         ip_list = list(map(str, ip_list))
         return '.'.join(ip_list), index + 4
 
 
     def unpack_ns(self, message, index):
+        ''' Unpack an NS record
+
+        Paramters
+        ---------
+        message : bytes
+        index: int
+
+        Returns
+        -------
+        name : string
+        unpack_index : int
+        '''
         name, index = self.unpack_domain(message, index)
         return name, index 
 
 
     def unpack_cname(self, message, index):
+        ''' Unpack an CNAME record
+
+        Paramters
+        ---------
+        message : bytes
+        index: int
+
+        Returns
+        -------
+        name : string
+        unpack_index : int
+        '''
         return self.unpack_ns(message, index)
 
 
     def unpack_mx(self, message, index):
+        ''' Unpack an MX record
+
+        Paramters
+        ---------
+        message : bytes
+        index: int
+
+        Returns
+        -------
+        name : string
+        unpack_index : int
+        '''
         # unpack preference 
         preference = struct.unpack_from(">H", message, index)
         index += 2
