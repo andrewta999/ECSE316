@@ -106,7 +106,7 @@ class DnsClient():
             error code
         '''
         if error_code == 1:
-            print(f"Maximum number of retries {self.max_retires} exceeded")
+            print(f"Error: Maximum number of retries {self.max_retries} exceeded")
 
     
     def print_response(self, dns, response, interval, error_code):
