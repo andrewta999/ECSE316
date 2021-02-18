@@ -81,7 +81,6 @@ class DnsClient():
         self.retry = retry 
 
         # if retry more than expected
-        # return None
         if retry > self.max_retries:
             return None, 1
         try:
@@ -95,18 +94,6 @@ class DnsClient():
         
         # return the response 
         return server_packet, 0
-
-
-    def print_error(self, error_code):
-        ''' Print error according to error code
-
-        Parameters
-        ----------
-        error_code : int
-            error code
-        '''
-        if error_code == 1:
-            print(f"Error: Maximum number of retries {self.max_retries} exceeded")
 
     
     def print_response(self, dns, response, interval, error_code):
@@ -127,35 +114,43 @@ class DnsClient():
         print(f"Server: {self.address}")
         print(f"Request type: {self.query_type}\n")
 
-        if error_code == 0:
-            # decode packet
-            response = dns.unpack_packet(response)
-            print(f"Response received after {interval} seconds ({self.retry} retries)")
+        # check if timeout
+        if error_code == 1:
+            print(f"Error: Maximum number of retries {self.max_retries} exceeded")
+            return 
+
+        # decode packet
+        response = dns.unpack_packet(response)
+
+        # get rcode, ra, and aa
+        rcode = response['header']['rcode']
+        ra = response['header']['ra']
+        auth = bool(response['header']['aa'])
             
-            # get number of records in answer, authority, and additional sections
-            ancount = response['header']['ancount']
-            nscount = response['header']['nscount']
-            arcount = response['header']['arcount']
+        # check if packet error
+        if rcode != 0:
+            self.print_error(rcode)
+            return 
 
-            # auth boolean
-            if response['header']['aa'] == 0:
-                auth = "noauth"
-            else:
-                auth = "auth"
+        # check if support the server support recursive query
+        if ra == 0:
+            print("Error: recursive queries are not supported\n")
 
-            # print answer section
-            self.print_section(ancount, response['answer'], "Answer", auth)
+        # print timelapse
+        print(f"Response received after {interval} seconds ({self.retry} retries)")
+
+        # print answer section
+        self.print_section(response['answer'], "Answer", auth)
             
-            # print authority section
-            self.print_section(nscount, response['authority'], "Authority", auth)
+        # print authority section
+        self.print_section(response['authority'], "Authority", auth)
             
-            # print additional section
-            self.print_section(arcount, response['additional'], "Additional", auth)
-        else:
-            self.print_error(error_code)
+        # print additional section
+        self.print_section(response['additional'], "Additional", auth)
+        
 
 
-    def print_section(self, count, section, section_name, auth):
+    def print_section(self, section, section_name, auth):
         ''' Print the records in a section
 
         Parameters
@@ -169,18 +164,38 @@ class DnsClient():
         auth : boolean
             auth or not
         '''
-        if count > 0:
-            print(f"***{section_name} Section ({count} records)***")
+        if len(section) > 0:
+            print(f"\n***{section_name} Section ({len(section)} records)***")
                 
-            for ans in section:
-                if ans["TYPE"] == 1:
-                    print(f"IP\t{ans['RDATA']}\t{ans['TTL']}\t{auth}")
-                elif ans["TYPE"] == 5:
-                    print(f"CNAME\t{ans['RDATA']}\t{ans['TTL']}\t{auth}")
-                elif ans["TYPE"] == 15:
-                    print(f"MX\t{ans['RDATA']['exchange']}\t{ans['RDATA']['preference']}\t{ans['TTL']}\t{auth}")
-                else: 
-                    print(f"NS\t{ans['RDATA']}\t{ans['TTL']}\t{auth}")
+        for ans in section:
+            if ans['CLASS'] != 1 or ans['RDATA'] == "":
+                print("Error: Unexpected response")
+                continue 
+            if ans["TYPE"] == 1:
+                print(f"IP\t{ans['RDATA']}\t{ans['TTL']}\t{auth}")
+            elif ans["TYPE"] == 5:
+                print(f"CNAME\t{ans['RDATA']}\t{ans['TTL']}\t{auth}")
+            elif ans["TYPE"] == 15:
+                print(f"MX\t{ans['RDATA']['exchange']}\t{ans['RDATA']['preference']}\t{ans['TTL']}\t{auth}")
+            else: 
+                print(f"NS\t{ans['RDATA']}\t{ans['TTL']}\t{auth}")
         
-        if section_name == "Answer" and count == 0:
-            print("NOT FOUND")
+
+    def print_error(self, error_code):
+        ''' Print error according to error code
+
+        Parameters
+        ----------
+        error_code : int
+            error code
+        '''
+        if error_code == 1:
+            print("Error: the name server was unable to interpret the query")
+        elif error_code == 2:
+            print("Error: the name server was unable to process this query due to a problem with the name server")
+        elif error_code == 3:
+            print("NOTFOUND")
+        elif error_code == 4:
+            print("Error: the name server does not support the requested kind of query")
+        elif error_code == 5:
+            print("Error: the name server refuses to perform the requested operation for policy reasons")
