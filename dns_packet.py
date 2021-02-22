@@ -296,7 +296,6 @@ class DnsPacket():
         name, index = self.unpack_domain(message, index)
         return name, index 
 
-
     def unpack_cname(self, message, index):
         ''' Unpack an CNAME record
 
@@ -311,7 +310,6 @@ class DnsPacket():
         unpack_index : int
         '''
         return self.unpack_ns(message, index)
-
 
     def unpack_mx(self, message, index):
         ''' Unpack an MX record
