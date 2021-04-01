@@ -64,7 +64,7 @@ def FFT_1D(img):
 
     # Step 2: perform FFT
     # threshold 
-    if N <= 16:
+    if N <= 4:
         return FT_1D(img)
     
     # divide image into two equal parts
@@ -95,7 +95,7 @@ def inverse_FFT_1D(img):
 
     # Step 2: perform FFT
     # threshold 
-    if N <= 16:
+    if N <= 4:
         return inverse_FT_1D(img)
     
     # divide image into two equal parts

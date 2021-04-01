@@ -44,11 +44,10 @@ def resize_and_FFT(image):
     new_img = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
 
     # Step 4: perform FFT
-    # new_img2 = FFT_2D(new_img)
-    new_img2 = np.fft.fft2(new_img)
+    new_img2 = FFT_2D(new_img)
 
     # return the new image
-    return img, new_img2 
+    return new_img, new_img2 
 
 
 def mode1(image):
@@ -63,7 +62,7 @@ def mode1(image):
 
     # Step 2: plot the results
     plot, sub_plot = plt.subplots(1, 2)
-    sub_plot[0].imshow(original_img, plt.cm.gray)
+    sub_plot[0].imshow(img, plt.cm.gray)
     sub_plot[0].set_title('Original image')
     sub_plot[1].imshow(np.abs(new_img), norm=LogNorm())
     sub_plot[1].set_title('FFT on image')
@@ -89,17 +88,18 @@ def mode2(image):
     # set to zero all rows and columns with fractions between keep_fraction and (1-keep_fraction):
     new_img[int(r * keep) : int(r * (1 - keep))] = 0   
     new_img[:, int(c * keep) : int(c * (1 - keep))] = 0
+    # print results to stdout
+    print(f"Fraction of non-zeros: {keep}")
+    print(f"Number of non-zerors: ({int(r*keep)}, {int(c*keep)}) out of ({r}, {c})")
 
     # Step 4: perform inverse FFT to reconstruct the image (keep only the real part for display)
     new_img2 = inverse_FFT_2D(new_img).real 
 
-    # Step 5: plot two images and print results to stdout
-    print(f"Fraction of non-zeros: {keep}")
-    print(f"Number of non-zerors: ({r*keep}, {c*keep}) out of ({r}, {c})")
+    # Step 5: plot two images
     plot, sub_plot = plt.subplots(1, 2)
-    sub_plot[0].imshow(original_img, plt.cm.gray)
+    sub_plot[0].imshow(img, plt.cm.gray)
     sub_plot[0].set_title('Original image')
-    sub_plot[1].imshow(new_img, plt.cm.gray)
+    sub_plot[1].imshow(new_img2, plt.cm.gray)
     sub_plot[1].set_title('Denoised image')
     plot.suptitle(f'Mode 2')
     plt.show()
@@ -127,7 +127,7 @@ def compress1(img, level):
     compressed_img = img * np.logical_or(img <= lower, img >= upper)
 
     # perform the inverse FFT and return 
-    return np.fft.ifft2(compressed_img)
+    return inverse_FFT_2D(compressed_img)
 
 
 def compress2(img, level):
@@ -145,23 +145,25 @@ def compress2(img, level):
     """
     # get the dimension of the image
     dim = img.shape 
+    size = dim[0]*dim[1]
+    threshold = level*size//100
 
     # get the magnitude
     temp = np.abs(img)
 
-    # get the indices of 'level' number of smallest magnitudes
-    index = np.argpartition(temp, level, axis=None)
+    # get the indices of 'level' percent of smallest magnitudes
+    index = np.argpartition(temp, threshold, axis=None)
 
-    # flatten the image and set 'level' smallest magnitudes to 0
+    # flatten the image and set 'level' percent of smallest magnitudes to 0
     img_temp = img.flatten()
-    for i in range(level):
-        img_temp[index[i]] = 0
+    for i in range(threshold):
+        img_temp[index[i]] = 0 + 0j 
 
     # rebuild the image
     compressed_img = np.reshape(img_temp, dim)
 
     # perform IFFT and return 
-    return np.fft.ifft2(compressed_img)
+    return inverse_FFT_2D(compressed_img)
 
 
 def mode3(image):
@@ -187,7 +189,7 @@ def mode3(image):
             print(f"\tNumber of non-rezos: {R*C*(100-level)//100}")
 
             # compress the image and add to plot
-            compressed_img = compress1(new_img, level)
+            compressed_img = compress2(new_img, level)
             ax[i, j].imshow(compressed_img.real, plt.cm.gray)
             ax[i, j].set_title(f"Compression level: {level}")
 
@@ -197,8 +199,6 @@ def mode3(image):
     plt.show()
 
 
-
-     
 def mode4(image):
     """ Plot the run-time graph of 2D-FFT and naive 2D-FT
     Parameters
@@ -225,7 +225,7 @@ def mode4(image):
         err = []    # data for standard deviation
 
         size = 2**5 # problem size
-        while size <= 2**12:
+        while size <= 2**10:
             # append size to x_data
             x_data.append(size)
 
