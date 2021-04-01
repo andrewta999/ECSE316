@@ -1,13 +1,11 @@
 import numpy as np 
 
-
 def FT_1D(img):
-    """
-    Naive 1D-DFT
+    """ Perform the naive Fourier Transform on 1D array
     Paramters
     ---------
-    img: 1D-array
-    
+    img: 1D numpy array
+
     Returns
     -------
     1D numpy array
@@ -27,6 +25,15 @@ def FT_1D(img):
 
 
 def inverse_FT_1D(img):
+    """ Perform the naive Inverse Fourier Transform on 1D array
+    Paramters
+    ---------
+    img: 1D numpy array
+
+    Returns
+    -------
+    1D numpy array
+    """
     # Step 1: get image size
     N = img.shape[0]
     result = np.zeros(N, dtype=complex)
@@ -42,6 +49,15 @@ def inverse_FT_1D(img):
 
 
 def FFT_1D(img):
+    """ Perform the Fast Fourier Transform on 1D array
+    Paramters
+    ---------
+    img: 1D numpy array
+
+    Returns
+    -------
+    1D numpy array
+    """
     # Step 1: get image size
     N = img.shape[0]
     result = np.zeros(N, dtype=complex)
@@ -64,6 +80,15 @@ def FFT_1D(img):
 
 
 def inverse_FFT_1D(img):
+    """ Perform the Inverse Fast Fourier Transform on 1D array
+    Paramters
+    ---------
+    img: 1D numpy array
+
+    Returns
+    -------
+    1D numpy array
+    """
     # Step 1: get image size
     N = img.shape[0]
     result = np.zeros(N, dtype=complex)
@@ -82,11 +107,20 @@ def inverse_FFT_1D(img):
     M = N//2
     for k in range(N):
         result[k] = even[k % M] + np.exp(2j * np.pi * k / N) * odd[k % M]
-        result[k] /= N
+        result[k] /= 2
     return result
 
 
 def FT_2D(img):
+    """ Perform the naive Fourier Transform on 2D array
+    Paramters
+    ---------
+    img: 2D numpy array
+
+    Returns
+    -------
+    2D numpy array
+    """
     N, M = img.shape
     result = np.zeros((N, M), dtype=complex)
 
@@ -100,6 +134,15 @@ def FT_2D(img):
 
 
 def inverse_FT_2D(img):
+    """ Perform the naive Inverse Fourier Transform on 2D array
+    Paramters
+    ---------
+    img: 2D numpy array
+
+    Returns
+    -------
+    2D numpy array
+    """
     N, M = img.shape
     result = np.zeros((N, M), dtype=complex)
 
@@ -108,12 +151,21 @@ def inverse_FT_2D(img):
             for m in range(M):
                 for n in range(N):
                     result[k, l] += img[n, m] * np.exp(2j * np.pi * ((l * m / M) + (k * n / N)))
-            res[k, l] /= M * N
+            result[k, l] /= M * N
 
     return result 
 
 
 def FFT_2D(img):
+    """ Perform the Fast Fourier Transform on 2D array
+    Paramters
+    ---------
+    img: 2D numpy array
+
+    Returns
+    -------
+    2D numpy array
+    """
     # Step 1: get row and column
     R, C = img.shape 
     result = np.zeros((R, C), dtype=complex)
@@ -130,6 +182,15 @@ def FFT_2D(img):
 
 
 def inverse_FFT_2D(img):
+    """ Perform the Inverse Fast Fourier Transform on 2D array
+    Paramters
+    ---------
+    img: 2D numpy array
+
+    Returns
+    -------
+    2D numpy array
+    """
     # Step 1: convert to 2D np-array
     R, C = img.shape
     result = np.zeros((R, C), dtype=complex)

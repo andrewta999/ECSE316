@@ -9,3 +9,16 @@ pip install -r requirements.txt
 ```
 
 ### Usage
+1. Some examples are given below
+```
+python fft.py -m 1 
+```
+```
+python fft.py -m 3 -i moonlanding.png
+```
+
+### Test
+1. Run the test
+```
+python test.py 
+```
