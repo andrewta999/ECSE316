@@ -70,7 +70,7 @@ def inverse_FFT_1D(img):
 
     # Step 2: perform FFT
     # threshold 
-    if N <= 32:
+    if N <= 16:
         return inverse_FT_1D(img)
     
     # divide image into two equal parts
@@ -84,6 +84,33 @@ def inverse_FFT_1D(img):
         result[k] = even[k % M] + np.exp(2j * np.pi * k / N) * odd[k % M]
         result[k] /= N
     return result
+
+
+def FT_2D(img):
+    N, M = img.shape
+    result = np.zeros((N, M), dtype=complex)
+
+    for k in range(N):
+        for l in range(M):
+            for m in range(M):
+                for n in range(N):
+                    result[k, l] += img[n, m] * np.exp(-2j * np.pi * ((l * m / M) + (k * n / N)))
+
+    return result 
+
+
+def inverse_FT_2D(img):
+    N, M = img.shape
+    result = np.zeros((N, M), dtype=complex)
+
+    for k in range(N):
+        for l in range(M):
+            for m in range(M):
+                for n in range(N):
+                    result[k, l] += img[n, m] * np.exp(2j * np.pi * ((l * m / M) + (k * n / N)))
+            res[k, l] /= M * N
+
+    return result 
 
 
 def FFT_2D(img):
