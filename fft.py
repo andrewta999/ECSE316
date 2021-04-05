@@ -9,20 +9,6 @@ from matplotlib.colors import LogNorm
 from ft_algorithm import FFT_2D, inverse_FFT_2D, FT_2D
 
 
-def get_new_size(s):
-    """ Compute the nearest power of 2 of a number
-    Parameters
-    ----------
-    s : int 
-
-    Returns
-    -------
-    int
-    """
-    p = int(math.log(s, 2)) + 1
-    return int(pow(2, p))
-
-
 def resize_and_FFT(image):
     """ Resize the image to size of power of 2, then take the FFT transform
     Parameters
@@ -38,13 +24,15 @@ def resize_and_FFT(image):
 
     # Step 2: get image's sizes and new sizes
     h, w = img.shape 
-    dim = (get_new_size(w), get_new_size(h))
+    dim = (512, 256)
 
     # Step 3: resize the image
     new_img = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
 
     # Step 4: perform FFT
     new_img2 = FFT_2D(new_img)
+    # new_img2 = np.fft.fft2(new_img)
+    print(f"FFT on image {image} completed")
 
     # return the new image
     return new_img, new_img2 
@@ -82,15 +70,17 @@ def mode2(image):
 
     # Step 3: filter out high frequencies
     # keep ratio
-    keep = 0.05
+    keep = 0.03
+    # keep ratior in each direction
+    keep_r = math.sqrt(keep)/2
     # get row and column
     r, c = new_img.shape 
-    # set to zero all rows and columns with fractions between keep_fraction and (1-keep_fraction):
-    new_img[int(r * keep) : int(r * (1 - keep))] = 0   
-    new_img[:, int(c * keep) : int(c * (1 - keep))] = 0
+    # set to zero all rows and columns with fractions between keep_r and (1-keep_r):
+    new_img[int(r * keep_r) : int(r * (1 - keep_r))] = 0   
+    new_img[:, int(c * keep_r) : int(c * (1 - keep_r))] = 0
     # print results to stdout
     print(f"Fraction of non-zeros: {keep}")
-    print(f"Number of non-zerors: ({int(r*keep)}, {int(c*keep)}) out of ({r}, {c})")
+    print(f"Number of non-zerors: {int(r*c*keep)} out of {r*c}")
 
     # Step 4: perform inverse FFT to reconstruct the image (keep only the real part for display)
     new_img2 = inverse_FFT_2D(new_img).real 
@@ -107,31 +97,6 @@ def mode2(image):
 
 def compress1(img, level):
     """ Compress method 1
-    Keep all very low frequencies and a fraction of high frequencies
-    Parameters
-    ----------
-    img : 2D numpy array
-    level : int
-        compresion level    
-
-    Returns 
-    -------
-    2D numpy array
-    """
-    # get keep lower and upper bound for filtering
-    keep = 100 - level
-    lower = np.percentile(img, keep//2)
-    upper = np.percentile(img, 100 - keep//2)
-
-    # filter the image wit lower and upper bounds
-    compressed_img = img * np.logical_or(img <= lower, img >= upper)
-
-    # perform the inverse FFT and return 
-    return inverse_FFT_2D(compressed_img)
-
-
-def compress2(img, level):
-    """ Compress method 2
     Threshold the coefficients' magnitude and take only the largest percentile of them
     Parameters
     ----------
@@ -157,12 +122,43 @@ def compress2(img, level):
     # flatten the image and set 'level' percent of smallest magnitudes to 0
     img_temp = img.flatten()
     for i in range(threshold):
-        img_temp[index[i]] = 0 + 0j 
+        img_temp[index[i]] = 0
 
     # rebuild the image
     compressed_img = np.reshape(img_temp, dim)
 
+    # save the compressed Fourier matrix
+    np.savez_compressed(f"compression_level_{level}", compressed_img)
+
     # perform IFFT and return 
+    return inverse_FFT_2D(compressed_img)
+
+
+def compress2(img, level):
+    """ Compress method 2
+    Keep all very low frequencies and a fraction of high frequencies
+    Parameters
+    ----------
+    img : 2D numpy array
+    level : int
+        compresion level    
+
+    Returns 
+    -------
+    2D numpy array
+    """
+    # get keep lower and upper bound for filtering
+    keep = 100 - level
+    lower = np.percentile(img, keep//2)
+    upper = np.percentile(img, 100 - keep//2)
+
+    # filter the image wit lower and upper bounds
+    compressed_img = img * np.logical_or(img <= lower, img >= upper)
+
+    # save the compressed Fourier matrix
+    np.savez_compressed(f"compression_level_{level}", compressed_img)
+
+    # perform the inverse FFT and return 
     return inverse_FFT_2D(compressed_img)
 
 
@@ -184,17 +180,12 @@ def mode3(image):
         for j in range(3):
             level = compression[i][j]
             # print to stdout
-            print(f"Compression level {level}:")
-            print(f"\tSize: {R*C}")
-            print(f"\tNumber of non-rezos: {R*C*(100-level)//100}")
+            print(f"Compression level {level} - Number of non-zeros: {R*C*(100-level)//100} out of {R*C}")
 
             # compress the image and add to plot
             compressed_img = compress2(new_img, level)
             ax[i, j].imshow(compressed_img.real, plt.cm.gray)
             ax[i, j].set_title(f"Compression level: {level}")
-
-            # save the image
-            np.savetxt(f"compression_level_{level}.txt", compressed_img)
 
     plt.show()
 
@@ -213,11 +204,11 @@ def mode4(image):
     # define some lists
     methods = [FFT_2D, FT_2D]
     names = ["FFT", "Naive DFT"]
-    color = ['green', 'cyan']
+    color = ['green', 'purple']
 
     # iteratively experiment with 2 algorithms
     for i in range(2):
-        print(f"Algorithm: {names[i]}")
+        print(f"Algorithm: {names[i]} ({color[i]})")
         
         # list to store data
         x_data = [] # data for x axis
