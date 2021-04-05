@@ -70,7 +70,7 @@ def mode2(image):
 
     # Step 3: filter out high frequencies
     # keep ratio
-    keep = 0.03
+    keep = 0.05
     # keep ratior in each direction
     keep_r = math.sqrt(keep)/2
     # get row and column
@@ -183,7 +183,7 @@ def mode3(image):
             print(f"Compression level {level} - Number of non-zeros: {R*C*(100-level)//100} out of {R*C}")
 
             # compress the image and add to plot
-            compressed_img = compress2(new_img, level)
+            compressed_img = compress1(new_img, level)
             ax[i, j].imshow(compressed_img.real, plt.cm.gray)
             ax[i, j].set_title(f"Compression level: {level}")
 
